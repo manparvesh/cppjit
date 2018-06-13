@@ -1,0 +1,30 @@
+
+hello.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 <.text>:
+   0:	48 c7 c0 01 00 00 00 	mov    rax,0x1
+   7:	48 c7 c7 01 00 00 00 	mov    rdi,0x1
+   e:	48 8d 35 0a 00 00 00 	lea    rsi,[rip+0xa]        # 0x1f
+  15:	48 c7 c2 11 00 00 00 	mov    rdx,0x11
+  1c:	0f 05                	syscall 
+  1e:	c3                   	ret    
+  1f:	48                   	rex.W
+  20:	65 6c                	gs ins BYTE PTR es:[rdi],dx
+  22:	6c                   	ins    BYTE PTR es:[rdi],dx
+  23:	6f                   	outs   dx,DWORD PTR ds:[rsi]
+  24:	2c 20                	sub    al,0x20
+  26:	4d 61                	rex.WRB (bad) 
+  28:	6e                   	outs   dx,BYTE PTR ds:[rsi]
+  29:	20 50 61             	and    BYTE PTR [rax+0x61],dl
+  2c:	72 76                	jb     0xa4
+  2e:	65 73 68             	gs jae 0x99
+  31:	20 53 69             	and    BYTE PTR [rbx+0x69],dl
+  34:	6e                   	outs   dx,BYTE PTR ds:[rsi]
+  35:	67 68 20 52 61 6e    	addr32 push 0x6e615220
+  3b:	64 68 61 77 61 21    	fs push 0x21617761
+  41:	21 21                	and    DWORD PTR [rcx],esp
+  43:	21 21                	and    DWORD PTR [rcx],esp
+  45:	21 00                	and    DWORD PTR [rax],eax
