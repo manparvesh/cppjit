@@ -1,111 +1,57 @@
-#include <iostream>
-#include <vector>
-#include <unistd.h>
-#include <sys/mman.h>
+/*********************************************************
+*           Created by manparvesh on 14/6/18.
+ *********************************************************/
 
-// Add the message size
-void append_message_size(std::vector<uint8_t> &machine_code, const std::string &hello_name);
+#include "memory_pages.h"
 
-void show_machine_code(const std::vector<uint8_t> &machine_code);
-
-size_t estimate_memory_size(size_t machine_code_size);
-
-int main() {
-    std::string personName;
-    // std::cout << "Please enter your name:" << std::endl;
-    // std::getline(std::cin, personName);
-    personName = "Man Parvesh";
-    std::string greeting = "Welcome to C++, " + personName + "!!";
-
-
-    // generating machine code
-    std::vector<uint8_t> machine_code{
-            0x48, 0xc7, 0xc0, 0x01, 0x00, 0x00, 0x00,           //Store the "write" system call number 0x01 for Linux
-            0x48, 0xc7, 0xc7, 0x01, 0x00, 0x00, 0x00,           //Store stdin file descriptor 0x01
-            0x48, 0x8d, 0x35, 0x0a, 0x00, 0x00,
-            0x00,           //Store the location of the string to write (3 instructions from the current instruction pointer)
-            0x48, 0xc7, 0xc2, 0x00, 0x00, 0x00, 0x00,           //Store the length of the string (initially zero)
-            0x0f, 0x05,                                         //Execute the system call
-            0xc3                                                //return instruction
+namespace AssemblyChunks {
+    std::vector<uint8_t> function_prologue{
+            0x55,               // push rbp
+            0x48, 0x89, 0xe5,   // mov	rbp, rsp
     };
 
-    append_message_size(machine_code, greeting);
+    std::vector<uint8_t> function_epilogue{
+            0x5d,   // pop	rbp
+            0xc3    // ret
+    };
+}
 
-    for (auto c : greeting) {
-        machine_code.push_back(c);
+// Global vector that is modified by test()
+std::vector<int> a{1, 2, 3};
+
+// Function to be called from our generated machine code
+void test() {
+    printf("Ohhh, boy ...\n");
+    for (auto &e : a) {
+        e -= 5;
     }
+}
 
-    show_machine_code(machine_code);
+int main() {
+    // Instance of exec mem structure
+    MemoryPages mp;
 
-    // allocate required memory size
-    size_t required_size = estimate_memory_size(machine_code.size());
-    uint8_t *mem = (uint8_t *) mmap(NULL, required_size, PROT_READ | PROT_WRITE | PROT_EXEC,
-                                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    // Push prologue
+    mp.push(AssemblyChunks::function_prologue);
 
-    if (mem == MAP_FAILED) {
-        std::cerr << "Can't allocate memory ._.\n";
-        std::exit(1);
-    }
+    // Push the call to the C++ function test (actually we push the address of the test function)
+    mp.push(0x48);
+    mp.push(0xb8);
+    mp.push(test);    // movabs rax, <function_address>
+    mp.push(0xff);
+    mp.push(0xd0);                   // call rax
 
-    // copy generated code to executable memory
-    for (size_t i = 0; i < machine_code.size(); i++) {
-        mem[i] = machine_code[i];
-    }
+    // Push epilogue and print the generated code
+    mp.push(AssemblyChunks::function_epilogue);
+    mp.show_memory();
 
-    // get a pointer to the beginning of the our executable code and
-    // cast it to a function pointer, after which we can use the generated function
-    void (*func)();
-    // cast address to function and call
-    func = (void (*)()) mem;
+    std::cout << "Global data initial values:" << endl;
+    std::cout << a[0] << "\t" << a[1] << "\t" << a[2] << endl;
+
+    // Cast the address of our generated code to a function pointer and call the function
+    void (*func)() = reinterpret_cast<void (*)()>(mp.executable_memory);
     func();
 
-    // Release the mapped memory
-    munmap(mem, required_size);
-
-    return 0;
-}
-
-void append_message_size(std::vector<uint8_t> &machine_code, const std::string &hello_name) {
-    size_t message_size = hello_name.length();
-
-    machine_code[24] = (message_size & 0xFF) >> 0;
-    machine_code[25] = (message_size & 0xFF00) >> 8;
-    machine_code[26] = (message_size & 0xFF0000) >> 16;
-    machine_code[27] = (message_size & 0xFF000000) >> 24;
-}
-
-void show_machine_code(const std::vector<uint8_t> &machine_code) {
-    int index = 0;
-    std::cout << "Generated machine code: " << std::endl;
-
-    // print hex
-    std::cout << std::hex;
-    for (int i = 0; i < machine_code.size(); i++) {
-        auto e = (int) machine_code[i];
-        std::cout << e << " ";
-        if (i % 7 == 0) {
-            std::cout << std::endl;
-        }
-    }
-
-    // revert to decimal
-    std::cout << std::dec;
-    std::cout << std::endl;
-    std::cout << std::endl;
-}
-
-size_t estimate_memory_size(size_t machine_code_size) {
-    size_t page_size_multiple = sysconf(_SC_PAGESIZE); // machine page size
-    size_t factor = 1;
-    size_t required_memory_size;
-
-    while (true) {
-        required_memory_size = factor * page_size_multiple;
-        if (machine_code_size <= required_memory_size) {
-            break;
-        }
-        factor++;
-    }
-
-    return required_memory_size;
+    std::cout << "Global data after test() was called from the generated code:" << endl;
+    std::cout << a[0] << "\t" << a[1] << "\t" << a[2] << endl;
 }
